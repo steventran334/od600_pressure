@@ -5,13 +5,18 @@ import tempfile
 import h5py
 import scipy.io
 
-def get_mat_array(dataset):
-    data = np.array(dataset)
-    if data.ndim == 2 and data.shape[0] == 1:
-        data = data[0]
-    elif data.ndim == 2 and data.shape[1] == 1:
-        data = data[:,0]
-    return data
+def get_matlab_struct_field(struct, field):
+    # Extract MATLAB struct field from scipy.io.loadmat output
+    val = struct[0,0][field][0,0]
+    if hasattr(val, 'shape') and val.shape == (1, 1):
+        return val[0,0]
+    return val
+
+def get_row(arr, idx):
+    arr = np.asarray(arr)
+    if arr.ndim == 1:
+        return arr
+    return arr[idx, :]
 
 st.title("OD600 vs Pressure Plotter (.mat files)")
 
@@ -21,51 +26,56 @@ if uploaded_file:
         tmp_file.write(uploaded_file.read())
         tmp_file_path = tmp_file.name
 
-    # Try HDF5 loader first
+    # Try loading as HDF5 first (MATLAB v7.3+), then fallback to scipy
     try:
         with h5py.File(tmp_file_path, 'r') as f:
-            mat_type = "hdf5"
-            wavelengths = get_mat_array(f['spectdata']['wavelengths'])
-            sample = np.array(f['spectdata']['sample'])
-            reference = np.array(f['spectdata']['reference'])
-            dark = np.array(f['spectdata']['dark'])
-            pressuremeasured = get_mat_array(f['spectdata']['pressuremeasured'])
+            # Helper for 1D/2D arrays
+            def arr(dataset):
+                data = np.array(dataset)
+                if data.ndim == 2 and data.shape[0] == 1:
+                    data = data[0]
+                elif data.ndim == 2 and data.shape[1] == 1:
+                    data = data[:,0]
+                return data
+            spectdata = f['spectdata']
+            wavelengths = arr(spectdata['wavelengths'])
+            sample = np.array(spectdata['sample'])
+            reference = np.array(spectdata['reference'])
+            pressuremeasured = arr(spectdata['pressuremeasured'])
+            # dark may not exist
+            has_dark = 'dark' in spectdata
+            if has_dark:
+                dark = np.array(spectdata['dark'])
     except Exception:
-        # Try scipy for pre-v7.3 mat files
+        mat = scipy.io.loadmat(tmp_file_path)
+        spectdata = mat['spectdata']
+        wavelengths = get_matlab_struct_field(spectdata, 'wavelengths').flatten()
+        sample = get_matlab_struct_field(spectdata, 'sample')
+        reference = get_matlab_struct_field(spectdata, 'reference')
+        pressuremeasured = get_matlab_struct_field(spectdata, 'pressuremeasured').flatten()
         try:
-            mat = scipy.io.loadmat(tmp_file_path)
-            mat_type = "scipy"
-            # Field names may vary, update if needed
-            spectdata = mat['spectdata']
-            # You may need to check struct dtype in scipy
-            def extract(field):
-                # Handle MATLAB structs loaded as numpy voids
-                val = spectdata[0,0][field][0,0]
-                if val.shape == (1, 1):
-                    return val[0,0]
-                else:
-                    return val
-            wavelengths = extract('wavelengths').flatten()
-            sample = extract('sample')
-            reference = extract('reference')
-            dark = extract('dark')
-            pressuremeasured = extract('pressuremeasured').flatten()
-        except Exception as e:
-            st.error("This file is not a valid MATLAB .mat file, or the format is not supported. Error: " + str(e))
-            st.stop()
-    
-    # Find index closest to 600 nm
+            dark = get_matlab_struct_field(spectdata, 'dark')
+            has_dark = True
+        except Exception:
+            has_dark = False
+
+    # Find the row index closest to 600 nm
     idx600 = np.argmin(np.abs(wavelengths - 600))
-    I_dark = dark[idx600, :] if dark.shape[0] > 1 else dark[0, :]
-    I_sample = sample[idx600, :] - I_dark
-    I_ref = reference[idx600, :] - I_dark
+
+    if has_dark:
+        I_dark = get_row(dark, idx600)
+        I_sample = get_row(sample, idx600) - I_dark
+        I_ref = get_row(reference, idx600) - I_dark
+    else:
+        I_sample = get_row(sample, idx600)
+        I_ref = get_row(reference, idx600)
     od600 = -np.log10(I_sample / I_ref)
 
     # Plot
     fig, ax = plt.subplots()
     ax.plot(pressuremeasured, od600, 'o-')
     ax.set_xlabel('Measured Pressure (kPa)')
-    ax.set_ylabel('OD600')
-    ax.set_title('OD600 vs Pressure')
+    ax.set_ylabel('OD$_{600}$')
+    ax.set_title('OD$_{600}$ vs Pressure')
     ax.grid(True)
     st.pyplot(fig)

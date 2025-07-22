@@ -2,13 +2,18 @@ import streamlit as st
 import h5py
 import numpy as np
 import matplotlib.pyplot as plt
+import tempfile
 
 st.title("OD600 vs Pressure Plotter (.mat files)")
 
 uploaded_file = st.file_uploader("Upload your .mat file", type=["mat"])
 if uploaded_file:
-    # Read HDF5-based .mat file
-    with h5py.File(uploaded_file, 'r') as f:
+    # Save uploaded file to a temporary location
+    with tempfile.NamedTemporaryFile(delete=False) as tmp_file:
+        tmp_file.write(uploaded_file.read())
+        tmp_file_path = tmp_file.name
+
+    with h5py.File(tmp_file_path, 'r') as f:
         # Helper to extract dataset as numpy array and transpose if needed
         def get_mat_array(dataset):
             data = np.array(dataset)

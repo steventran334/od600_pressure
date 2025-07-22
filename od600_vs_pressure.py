@@ -14,6 +14,8 @@ def get_matlab_struct_field(struct, field):
 
 def get_row(arr, idx):
     arr = np.asarray(arr)
+    if arr.ndim == 0:        # scalar
+        return np.array([arr])
     if arr.ndim == 1:
         return arr
     return arr[idx, :]
@@ -29,7 +31,6 @@ if uploaded_file:
     # Try loading as HDF5 first (MATLAB v7.3+), then fallback to scipy
     try:
         with h5py.File(tmp_file_path, 'r') as f:
-            # Helper for 1D/2D arrays
             def arr(dataset):
                 data = np.array(dataset)
                 if data.ndim == 2 and data.shape[0] == 1:
@@ -42,7 +43,6 @@ if uploaded_file:
             sample = np.array(spectdata['sample'])
             reference = np.array(spectdata['reference'])
             pressuremeasured = arr(spectdata['pressuremeasured'])
-            # dark may not exist
             has_dark = 'dark' in spectdata
             if has_dark:
                 dark = np.array(spectdata['dark'])
@@ -59,7 +59,6 @@ if uploaded_file:
         except Exception:
             has_dark = False
 
-    # Find the row index closest to 600 nm
     idx600 = np.argmin(np.abs(wavelengths - 600))
 
     if has_dark:
@@ -71,7 +70,6 @@ if uploaded_file:
         I_ref = get_row(reference, idx600)
     od600 = -np.log10(I_sample / I_ref)
 
-    # Plot
     fig, ax = plt.subplots()
     ax.plot(pressuremeasured, od600, 'o-')
     ax.set_xlabel('Measured Pressure (kPa)')

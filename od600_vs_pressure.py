@@ -3,10 +3,13 @@ import numpy as np
 import matplotlib.pyplot as plt
 import tempfile
 import scipy.io
+import io
 
 st.title("OD600 vs Pressure Plotter (.mat files)")
 
 uploaded_file = st.file_uploader("Upload your .mat file", type=["mat"])
+plot_title = st.text_input("Plot Title", value="OD600 vs Pressure")
+
 if uploaded_file:
     # Save to a temporary file
     with tempfile.NamedTemporaryFile(delete=False) as tmp_file:
@@ -39,10 +42,22 @@ if uploaded_file:
 
     od600 = -np.log10(I_sample / I_ref)
 
+    # Plot
     fig, ax = plt.subplots()
     ax.plot(pressuremeasured, od600, 'o-')
     ax.set_xlabel('Measured Pressure (kPa)')
     ax.set_ylabel('OD$_{600}$')
-    ax.set_title('OD$_{600}$ vs Pressure')
+    ax.set_title(plot_title)
     ax.grid(True)
     st.pyplot(fig)
+
+    # Download SVG button
+    svg_buf = io.StringIO()
+    fig.savefig(svg_buf, format="svg")
+    svg_data = svg_buf.getvalue()
+    st.download_button(
+        label="Download plot as SVG",
+        data=svg_data,
+        file_name="OD600_vs_Pressure.svg",
+        mime="image/svg+xml"
+    )

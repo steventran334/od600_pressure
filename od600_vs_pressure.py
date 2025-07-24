@@ -5,6 +5,7 @@ import tempfile
 import scipy.io
 import io
 import os
+import pandas as pd
 
 st.title("OD600 vs Pressure Plotter (multiple .mat overlay)")
 
@@ -15,17 +16,24 @@ uploaded_files = st.file_uploader(
 )
 plot_title = st.text_input("Plot Title", value="OD600 vs Pressure")
 
+series_names = []
 if uploaded_files:
+    # Input for custom series names
+    st.subheader("Edit Series Names")
+    for idx, f in enumerate(uploaded_files):
+        default = os.path.splitext(f.name)[0]
+        name = st.text_input(f"Series {idx+1} name:", value=default)
+        series_names.append(name)
+
     fig, ax = plt.subplots()
-    colors = plt.cm.tab10.colors  # for up to 10 curves
+    colors = plt.cm.tab10.colors
+    results = []  # To store summary for table
 
     for idx, uploaded_file in enumerate(uploaded_files):
-        # Save to temp file
         with tempfile.NamedTemporaryFile(delete=False) as tmp_file:
             tmp_file.write(uploaded_file.read())
             tmp_file_path = tmp_file.name
 
-        # Load MATLAB struct (v7.2 or lower)
         mat = scipy.io.loadmat(tmp_file_path)
         spectdata = mat['spectdata'][0,0]
         wavelengths = spectdata['wavelengths'].squeeze()
@@ -49,13 +57,37 @@ if uploaded_files:
 
         od600 = -np.log10(I_sample / I_ref)
 
-        # Use filename (without extension/path) as label
-        label = os.path.splitext(uploaded_file.name)[0]
+        # Ensure arrays are sorted in ascending pressure for correct interpolation
+        if not np.all(np.diff(pressuremeasured) > 0):
+            sort_idx = np.argsort(pressuremeasured)
+            pressuremeasured = pressuremeasured[sort_idx]
+            od600 = od600[sort_idx]
+
+        # Plot with custom label
+        label = series_names[idx]
         color = colors[idx % len(colors)]
         ax.plot(
             pressuremeasured, od600, 'o-', 
             label=label, color=color
         )
+
+        # Calculate OD600 thresholds
+        max_val = od600[0]  # at first pressure
+        min_val = od600[-1] # at last pressure
+        thresholds = [0.0, 0.25, 0.5, 0.75]  # Relative levels
+        level_dict = {}
+        for thresh in thresholds:
+            target = max_val + (min_val - max_val) * thresh
+            # Find nearest index to this target
+            idx_nearest = np.argmin(np.abs(od600 - target))
+            p_val = pressuremeasured[idx_nearest]
+            level_dict[f"{int(thresh*100)}% OD600"] = (target, p_val)
+
+        # Store for summary table
+        row = {"Series": label}
+        for key in level_dict:
+            row[key] = level_dict[key][1]
+        results.append(row)
 
     ax.set_xlabel('Measured Pressure (kPa)')
     ax.set_ylabel('OD$_{600}$')
@@ -64,7 +96,7 @@ if uploaded_files:
     ax.legend()
     st.pyplot(fig)
 
-    # Download SVG button (for overlay plot)
+    # Download SVG button
     svg_buf = io.StringIO()
     fig.savefig(svg_buf, format="svg")
     svg_data = svg_buf.getvalue()
@@ -74,3 +106,8 @@ if uploaded_files:
         file_name="OD600_vs_Pressure_overlay.svg",
         mime="image/svg+xml"
     )
+
+    # Show summary table
+    st.subheader("Pressure at OD600 transition points")
+    df = pd.DataFrame(results)
+    st.dataframe(df)

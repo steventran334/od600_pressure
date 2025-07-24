@@ -22,7 +22,7 @@ if uploaded_files:
     st.subheader("Edit Series Names")
     for idx, f in enumerate(uploaded_files):
         default = os.path.splitext(f.name)[0]
-        name = st.text_input(f"Series {idx+1} name:", value=default)
+        name = st.text_input(f"Series {idx+1} name:", value=default, key=f"seriesname{idx}")
         series_names.append(name)
 
     fig, ax = plt.subplots()
@@ -71,14 +71,13 @@ if uploaded_files:
             label=label, color=color
         )
 
-        # Calculate OD600 thresholds
-        max_val = od600[0]  # at first pressure
-        min_val = od600[-1] # at last pressure
-        thresholds = [0.0, 0.25, 0.5, 0.75]  # Relative levels
+        # Calculate OD600 thresholds: 100%, 75%, 50%, 25%, 0%
+        max_val = od600[0]  # 100% at lowest pressure
+        min_val = od600[-1] # 0% at highest pressure
+        thresholds = [1.0, 0.75, 0.5, 0.25, 0.0]  # 100%, 75%, 50%, 25%, 0%
         level_dict = {}
         for thresh in thresholds:
-            target = max_val + (min_val - max_val) * thresh
-            # Find nearest index to this target
+            target = min_val + (max_val - min_val) * thresh
             idx_nearest = np.argmin(np.abs(od600 - target))
             p_val = pressuremeasured[idx_nearest]
             level_dict[f"{int(thresh*100)}% OD600"] = (target, p_val)
@@ -96,7 +95,7 @@ if uploaded_files:
     ax.legend()
     st.pyplot(fig)
 
-    # Download SVG button
+    # Download SVG button (for overlay plot)
     svg_buf = io.StringIO()
     fig.savefig(svg_buf, format="svg")
     svg_data = svg_buf.getvalue()

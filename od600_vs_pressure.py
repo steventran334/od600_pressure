@@ -80,13 +80,12 @@ if uploaded_files:
             label=label, color=color
         )
 
-        # Percent threshold summary
-        max_val = od600[0]
-        min_val = od600[-1]
+        # Percent threshold summary - use percent of max (first) OD600
+        max_val = od600[0]  # 100% at lowest pressure
         thresholds = [1.0, 0.75, 0.5, 0.25, 0.0]
         level_dict = {}
         for thresh in thresholds:
-            target = min_val + (max_val - min_val) * thresh
+            target = max_val * thresh
             idx_nearest = np.argmin(np.abs(od600 - target))
             p_val = pressuremeasured[idx_nearest]
             level_dict[f"{int(thresh*100)}% OD600"] = (target, p_val)
@@ -94,6 +93,7 @@ if uploaded_files:
         for key in level_dict:
             row[key] = level_dict[key][1]
         results.append(row)
+
 
     ax.set_xlabel('Measured Pressure (kPa)')
     ax.set_ylabel('OD$_{600}$')

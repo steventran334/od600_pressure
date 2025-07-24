@@ -14,7 +14,9 @@ uploaded_files = st.file_uploader(
     type=["mat"], 
     accept_multiple_files=True
 )
-plot_title = st.text_input("Plot Title", value="OD600 vs Pressure")
+
+# Editable title for the absolute (raw) overlay plot
+plot_title = st.text_input("Plot Title (for absolute OD600 plot)", value="OD600 vs Pressure")
 
 series_names = []
 od600_all = []
@@ -125,7 +127,8 @@ if uploaded_files:
     })
     st.dataframe(max_df)
 
-    # Normalized overlay plot
+    # Editable title for normalized overlay plot
+    norm_plot_title = st.text_input("Normalized Plot Title", value="Normalized OD600 vs Pressure")
     st.subheader("Normalized OD600 vs Pressure (for fair comparison)")
     fig2, ax2 = plt.subplots()
     for idx, (pressuremeasured, od600) in enumerate(zip(pressure_all, od600_all)):
@@ -138,7 +141,7 @@ if uploaded_files:
         ax2.plot(pressuremeasured, norm_od600, 'o-', label=label, color=color)
     ax2.set_xlabel('Measured Pressure (kPa)')
     ax2.set_ylabel('Normalized OD$_{600}$')
-    ax2.set_title("Normalized OD600 vs Pressure")
+    ax2.set_title(norm_plot_title)
     ax2.grid(True)
     ax2.legend()
     st.pyplot(fig2)

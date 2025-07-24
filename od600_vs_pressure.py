@@ -17,8 +17,11 @@ uploaded_files = st.file_uploader(
 plot_title = st.text_input("Plot Title", value="OD600 vs Pressure")
 
 series_names = []
+od600_all = []
+pressure_all = []
+max_od600s = []
+
 if uploaded_files:
-    # Input for custom series names
     st.subheader("Edit Series Names")
     for idx, f in enumerate(uploaded_files):
         default = os.path.splitext(f.name)[0]
@@ -27,7 +30,7 @@ if uploaded_files:
 
     fig, ax = plt.subplots()
     colors = plt.cm.tab10.colors
-    results = []  # To store summary for table
+    results = []  # For percent summary table
 
     for idx, uploaded_file in enumerate(uploaded_files):
         with tempfile.NamedTemporaryFile(delete=False) as tmp_file:
@@ -57,32 +60,36 @@ if uploaded_files:
 
         od600 = -np.log10(I_sample / I_ref)
 
-        # Ensure arrays are sorted in ascending pressure for correct interpolation
+        # Ensure ascending order in pressure for fair comparison/interpolation
         if not np.all(np.diff(pressuremeasured) > 0):
             sort_idx = np.argsort(pressuremeasured)
             pressuremeasured = pressuremeasured[sort_idx]
             od600 = od600[sort_idx]
 
-        # Plot with custom label
+        # For later plots and tables
+        od600_all.append(od600)
+        pressure_all.append(pressuremeasured)
+        max_od600 = np.max(od600)
+        max_od600s.append(max_od600)
+
+        # Main (absolute) overlay plot
         label = series_names[idx]
         color = colors[idx % len(colors)]
         ax.plot(
-            pressuremeasured, od600, 'o-', 
+            pressuremeasured, od600, 'o-',
             label=label, color=color
         )
 
-        # Calculate OD600 thresholds: 100%, 75%, 50%, 25%, 0%
-        max_val = od600[0]  # 100% at lowest pressure
-        min_val = od600[-1] # 0% at highest pressure
-        thresholds = [1.0, 0.75, 0.5, 0.25, 0.0]  # 100%, 75%, 50%, 25%, 0%
+        # Percent threshold summary
+        max_val = od600[0]
+        min_val = od600[-1]
+        thresholds = [1.0, 0.75, 0.5, 0.25, 0.0]
         level_dict = {}
         for thresh in thresholds:
             target = min_val + (max_val - min_val) * thresh
             idx_nearest = np.argmin(np.abs(od600 - target))
             p_val = pressuremeasured[idx_nearest]
             level_dict[f"{int(thresh*100)}% OD600"] = (target, p_val)
-
-        # Store for summary table
         row = {"Series": label}
         for key in level_dict:
             row[key] = level_dict[key][1]
@@ -95,7 +102,7 @@ if uploaded_files:
     ax.legend()
     st.pyplot(fig)
 
-    # Download SVG button (for overlay plot)
+    # SVG download
     svg_buf = io.StringIO()
     fig.savefig(svg_buf, format="svg")
     svg_data = svg_buf.getvalue()
@@ -106,7 +113,32 @@ if uploaded_files:
         mime="image/svg+xml"
     )
 
-    # Show summary table
+    # Show summary table (percent transitions)
     st.subheader("Pressure at OD600 transition points")
     df = pd.DataFrame(results)
     st.dataframe(df)
+
+    # Max OD600 table
+    st.subheader("Maximum OD600 for each series")
+    max_df = pd.DataFrame({
+        "Series": series_names,
+        "Max OD600": max_od600s
+    })
+    st.dataframe(max_df)
+
+    # Normalized overlay plot
+    st.subheader("Normalized OD600 vs Pressure (for fair comparison)")
+    fig2, ax2 = plt.subplots()
+    for idx, (pressuremeasured, od600) in enumerate(zip(pressure_all, od600_all)):
+        max_val = od600[0]
+        min_val = od600[-1]
+        norm_od600 = (od600 - min_val) / (max_val - min_val) if (max_val - min_val) != 0 else np.zeros_like(od600)
+        label = series_names[idx]
+        color = colors[idx % len(colors)]
+        ax2.plot(pressuremeasured, norm_od600, 'o-', label=label, color=color)
+    ax2.set_xlabel('Measured Pressure (kPa)')
+    ax2.set_ylabel('Normalized OD$_{600}$')
+    ax2.set_title("Normalized OD600 vs Pressure")
+    ax2.grid(True)
+    ax2.legend()
+    st.pyplot(fig2)

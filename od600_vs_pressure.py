@@ -80,7 +80,7 @@ if uploaded_files:
             label=label, color=color
         )
 
-        # Percent threshold summary - use percent of max (first) OD600
+        # Percent threshold summary (relative to max OD600 at lowest pressure)
         max_val = od600[0]  # 100% at lowest pressure
         thresholds = [1.0, 0.75, 0.5, 0.25, 0.0]
         level_dict = {}
@@ -94,7 +94,6 @@ if uploaded_files:
             row[key] = level_dict[key][1]
         results.append(row)
 
-
     ax.set_xlabel('Measured Pressure (kPa)')
     ax.set_ylabel('OD$_{600}$')
     ax.set_title(plot_title)
@@ -102,7 +101,7 @@ if uploaded_files:
     ax.legend()
     st.pyplot(fig)
 
-    # SVG download
+    # Download SVG button (for overlay plot)
     svg_buf = io.StringIO()
     fig.savefig(svg_buf, format="svg")
     svg_data = svg_buf.getvalue()
@@ -114,7 +113,7 @@ if uploaded_files:
     )
 
     # Show summary table (percent transitions)
-    st.subheader("Pressure at OD600 transition points")
+    st.subheader("Pressure at OD600 transition points\n(Percent of max OD600 at lowest pressure)")
     df = pd.DataFrame(results)
     st.dataframe(df)
 
@@ -132,7 +131,8 @@ if uploaded_files:
     for idx, (pressuremeasured, od600) in enumerate(zip(pressure_all, od600_all)):
         max_val = od600[0]
         min_val = od600[-1]
-        norm_od600 = (od600 - min_val) / (max_val - min_val) if (max_val - min_val) != 0 else np.zeros_like(od600)
+        denom = max_val - min_val if (max_val - min_val) != 0 else 1.0
+        norm_od600 = (od600 - min_val) / denom
         label = series_names[idx]
         color = colors[idx % len(colors)]
         ax2.plot(pressuremeasured, norm_od600, 'o-', label=label, color=color)
@@ -142,3 +142,14 @@ if uploaded_files:
     ax2.grid(True)
     ax2.legend()
     st.pyplot(fig2)
+
+    # Download SVG button for normalized plot
+    svg_buf2 = io.StringIO()
+    fig2.savefig(svg_buf2, format="svg")
+    svg_data2 = svg_buf2.getvalue()
+    st.download_button(
+        label="Download normalized plot as SVG",
+        data=svg_data2,
+        file_name="Normalized_OD600_vs_Pressure_overlay.svg",
+        mime="image/svg+xml"
+    )

@@ -114,6 +114,28 @@ if uploaded_files:
         mime="image/svg+xml"
     )
 
+    # --- CSV EXPORT SECTION ---
+    # Prepare data for CSV export
+    export_rows = []
+    for idx, (series, pressure, od600) in enumerate(zip(series_names, pressure_all, od600_all)):
+        for p, od in zip(pressure, od600):
+            export_rows.append({
+                "Series": series,
+                "Pressure (kPa)": p,
+                "OD600": od
+            })
+    export_df = pd.DataFrame(export_rows)
+
+    st.subheader("Download OD600 vs Pressure Data")
+    csv = export_df.to_csv(index=False)
+    st.download_button(
+        label="Download OD600 vs Pressure CSV",
+        data=csv,
+        file_name="OD600_vs_Pressure.csv",
+        mime="text/csv"
+    )
+    # --- END CSV EXPORT SECTION ---
+
     # Show summary table (percent transitions)
     st.subheader("Pressure at OD600 transition points\n(Percent of max OD600 at lowest pressure)")
     df = pd.DataFrame(results)

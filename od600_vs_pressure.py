@@ -250,4 +250,16 @@ if uploaded_files:
             d2_interp = np.interp(p_inflect, Pu, d2)
             second_deriv_data.append({
                 "ΔP (kPa)": s,
+                "Pressure at Inflection (d²=0) (kPa)": round(p_inflect, 2)
+            })
+        ax4.set_xlabel("Measured Pressure (kPa)")
+        ax4.set_ylabel("d²(OD600)/dP²")
+        ax4.set_title("Second Derivative of OD600 vs Pressure (ΔP = 5 & 10 kPa)")
+        ax4.legend()
+        ax4.grid(True)
+        st.pyplot(fig4)
+
+        # Table: Second derivative summary
+        st.markdown("**Second Derivative Summary**")
+        st.dataframe(pd.DataFrame(second_deriv_data))
 

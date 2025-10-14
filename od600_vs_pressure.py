@@ -7,6 +7,18 @@ import io
 import os
 import pandas as pd
 
+# ============================================================
+# Helper: Compute derivatives at uniform ΔP interval
+# ============================================================
+def derivatives_with_step(P, Y, step_kpa):
+    import numpy as np
+    Pu = np.arange(np.min(P), np.max(P) + step_kpa / 2, step_kpa)
+    Yu = np.interp(Pu, P, Y)
+    d1 = np.gradient(Yu, Pu)
+    d2 = np.gradient(d1, Pu)
+    return Pu, Yu, d1, d2
+
+
 st.title("OD600 vs Pressure Plotter (multiple .mat overlay)")
 
 uploaded_files = st.file_uploader(

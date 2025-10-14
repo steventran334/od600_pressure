@@ -190,76 +190,75 @@ if uploaded_files:
         file_name="Normalized_OD600_vs_Pressure_overlay.svg",
         mime="image/svg+xml"
     )
-   # ------------------------------------------------------------
-    # FIND MIDPOINTS OF THE FIVE REGIMES (instead of shading)
     # ------------------------------------------------------------
-    st.subheader("Region Midpoints on Original OD600 Curve")
+    # DERIVATIVE-BASED REGIME POINTS (SIGN + INFLECTION METHOD)
+    # ------------------------------------------------------------
+    st.subheader("Derivative-Sign–Based Characteristic Points")
     
-    # Reuse previous regime summary (make sure it exists)
-    Pu, Yu, D1, D2 = derivatives_with_step(pressure, od600, step_kpa=5)
+    # Use first uploaded dataset for analysis
+    pressure = pressure_all[0]
+    od600 = od600_all[0]
     
-    # Smooth for stability
+    # Compute derivatives at ΔP = 5 kPa
+    Pu, Yu, D1, D2 = derivatives_with_step(pressure, od600, 5)
+    
+    # Smooth derivatives for numerical stability
     from scipy.signal import savgol_filter
     D1s = savgol_filter(D1, 9, 3)
     D2s = savgol_filter(D2, 9, 3)
     
-    # Identify inflection point
+    # 1. Inflection (where d² changes sign)
     sign_change_idx = np.where(np.diff(np.sign(D2s)) != 0)[0]
-    if len(sign_change_idx) > 0:
-        infl_idx = sign_change_idx[0]
-        P_infl = Pu[infl_idx]
-    else:
-        infl_idx = np.argmin(D1s)
-        P_infl = Pu[infl_idx]
+    infl_idx = sign_change_idx[0] if len(sign_change_idx) > 0 else np.argmin(D1s)
+    P_infl = Pu[infl_idx]
     
-    # Define regime edges manually by derivative trends
-    # (you can tune thresholds here if needed)
-    tau_slope = 0.02 * abs(D1s.min())
-    tau_curve = 0.05 * abs(D2s).max()
+    # 2. Thresholds for "flat" regions (pre/post)
+    tau_slope = 0.02 * np.abs(D1s.min())
     
-    pre_mask = (np.abs(D1s) < tau_slope) & (Pu < P_infl)
-    P1_end = Pu[np.where(pre_mask)[0][-1]] if np.any(pre_mask) else Pu[0]
+    # --- masks for each physical regime based on derivative signs ---
+    mask1 = (np.abs(D1s) < tau_slope) & (Pu < P_infl - 70)                # pre-flat
+    mask2 = (D1s < -tau_slope) & (D2s < 0) & (Pu < P_infl)                # pre-inflection
+    mask3 = (Pu >= P_infl - 5) & (Pu <= P_infl + 5)                       # inflection
+    mask4 = (D1s < -tau_slope) & (D2s > 0) & (Pu > P_infl)                # post-inflection
+    mask5 = (np.abs(D1s) < tau_slope) & (Pu > P_infl + 70)                # tail
     
-    P2_start = P1_end
-    P2_end = P_infl
+    masks = [mask1, mask2, mask3, mask4, mask5]
+    labels = ["Elastic (flat)", "Pre-inflection (collapse onset)", "Inflection point",
+              "Post-inflection (relaxation)", "Tail (post-collapse)"]
+    colors = ["#08306b","#2171b5","#fdae6b","#fdd0a2","#fee6ce"]
     
-    post_mask = (D2s > 0) & (np.abs(D2s) > tau_curve) & (Pu > P_infl)
-    P4_end = Pu[np.where(post_mask)[0][-1]] if np.any(post_mask) else Pu[-1]
+    # Compute midpoint for each mask
+    points = []
+    for label, mask in zip(labels, masks):
+        if np.any(mask):
+            P_mid = Pu[mask].mean()
+            OD_mid = np.interp(P_mid, pressure, od600)
+            d1_mid = np.mean(D1s[mask])
+            d2_mid = np.mean(D2s[mask])
+            points.append({
+                "Regime": label,
+                "Mid Pressure (kPa)": round(P_mid, 2),
+                "OD600": round(OD_mid, 3),
+                "Mean d(OD600)/dP": round(d1_mid, 5),
+                "Mean d²(OD600)/dP²": round(d2_mid, 6)
+            })
     
-    P5_start = P4_end
-    P5_end = Pu[-1]
+    # --- Plot OD600 with characteristic points ---
+    fig_pt, ax_pt = plt.subplots(figsize=(8,5))
+    ax_pt.plot(pressure, od600, 'k.-', label="OD600")
+    for i, p in enumerate(points):
+        ax_pt.scatter(p["Mid Pressure (kPa)"], p["OD600"],
+                      color=colors[i], s=80, zorder=5, label=p["Regime"])
+    ax_pt.set_xlabel("Measured Pressure (kPa)")
+    ax_pt.set_ylabel("OD$_{600}$")
+    ax_pt.set_title("OD600 vs Pressure with Derivative-Based Characteristic Points")
+    ax_pt.legend()
+    ax_pt.grid(True)
+    st.pyplot(fig_pt)
     
-    # --- compute midpoints for each regime ---
-    regimes = [
-        ("Regime 1", Pu[0], P1_end),
-        ("Regime 2", P2_start, P2_end),
-        ("Regime 3", P_infl, P_infl),
-        ("Regime 4", P_infl, P4_end),
-        ("Regime 5", P5_start, P5_end)
-    ]
-    
-    midpoints = []
-    for name, start, end in regimes:
-        mid = (start + end) / 2
-        od_mid = np.interp(mid, pressure, od600)
-        midpoints.append({"Regime": name, "Mid Pressure (kPa)": round(mid,2), "OD600": round(od_mid,3)})
-    
-    # Plot original curve + points
-    fig_mid, ax_mid = plt.subplots(figsize=(8,5))
-    ax_mid.plot(pressure, od600, 'k.-', label="OD600")
-    colors = ['#08306b','#08519c','#2171b5','#6baed6','#c6dbef']
-    for i, m in enumerate(midpoints):
-        ax_mid.scatter(m["Mid Pressure (kPa)"], m["OD600"], color=colors[i], s=80, zorder=5, label=m["Regime"])
-    ax_mid.set_xlabel("Measured Pressure (kPa)")
-    ax_mid.set_ylabel("OD$_{600}$")
-    ax_mid.set_title("OD600 vs Pressure with Regime Midpoints")
-    ax_mid.legend()
-    ax_mid.grid(True)
-    st.pyplot(fig_mid)
-    
-    # Display table of midpoints
-    st.markdown("**Midpoints of the Five Regimes**")
-    st.dataframe(pd.DataFrame(midpoints))
+    # --- Summary table ---
+    st.markdown("**Characteristic Points Derived from Derivative Sign Patterns**")
+    st.dataframe(pd.DataFrame(points))
 
     
     # ------------------------------------------------------------

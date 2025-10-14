@@ -190,77 +190,7 @@ if uploaded_files:
         file_name="Normalized_OD600_vs_Pressure_overlay.svg",
         mime="image/svg+xml"
     )
-    # ------------------------------------------------------------
-    # DERIVATIVE-BASED REGIME POINTS (SIGN + INFLECTION METHOD)
-    # ------------------------------------------------------------
-    st.subheader("Derivative-Sign–Based Characteristic Points")
-    
-    # Use first uploaded dataset for analysis
-    pressure = pressure_all[0]
-    od600 = od600_all[0]
-    
-    # Compute derivatives at ΔP = 5 kPa
-    Pu, Yu, D1, D2 = derivatives_with_step(pressure, od600, 5)
-    
-    # Smooth derivatives for numerical stability
-    from scipy.signal import savgol_filter
-    D1s = savgol_filter(D1, 9, 3)
-    D2s = savgol_filter(D2, 9, 3)
-    
-    # 1. Inflection (where d² changes sign)
-    sign_change_idx = np.where(np.diff(np.sign(D2s)) != 0)[0]
-    infl_idx = sign_change_idx[0] if len(sign_change_idx) > 0 else np.argmin(D1s)
-    P_infl = Pu[infl_idx]
-    
-    # 2. Thresholds for "flat" regions (pre/post)
-    tau_slope = 0.02 * np.abs(D1s.min())
-    
-    # --- masks for each physical regime based on derivative signs ---
-    mask1 = (np.abs(D1s) < tau_slope) & (Pu < P_infl - 70)                # pre-flat
-    mask2 = (D1s < -tau_slope) & (D2s < 0) & (Pu < P_infl)                # pre-inflection
-    mask3 = (Pu >= P_infl - 5) & (Pu <= P_infl + 5)                       # inflection
-    mask4 = (D1s < -tau_slope) & (D2s > 0) & (Pu > P_infl)                # post-inflection
-    mask5 = (np.abs(D1s) < tau_slope) & (Pu > P_infl + 70)                # tail
-    
-    masks = [mask1, mask2, mask3, mask4, mask5]
-    labels = ["Elastic (flat)", "Pre-inflection (collapse onset)", "Inflection point",
-              "Post-inflection (relaxation)", "Tail (post-collapse)"]
-    colors = ["#08306b","#2171b5","#fdae6b","#fdd0a2","#fee6ce"]
-    
-    # Compute midpoint for each mask
-    points = []
-    for label, mask in zip(labels, masks):
-        if np.any(mask):
-            P_mid = Pu[mask].mean()
-            OD_mid = np.interp(P_mid, pressure, od600)
-            d1_mid = np.mean(D1s[mask])
-            d2_mid = np.mean(D2s[mask])
-            points.append({
-                "Regime": label,
-                "Mid Pressure (kPa)": round(P_mid, 2),
-                "OD600": round(OD_mid, 3),
-                "Mean d(OD600)/dP": round(d1_mid, 5),
-                "Mean d²(OD600)/dP²": round(d2_mid, 6)
-            })
-    
-    # --- Plot OD600 with characteristic points ---
-    fig_pt, ax_pt = plt.subplots(figsize=(8,5))
-    ax_pt.plot(pressure, od600, 'k.-', label="OD600")
-    for i, p in enumerate(points):
-        ax_pt.scatter(p["Mid Pressure (kPa)"], p["OD600"],
-                      color=colors[i], s=80, zorder=5, label=p["Regime"])
-    ax_pt.set_xlabel("Measured Pressure (kPa)")
-    ax_pt.set_ylabel("OD$_{600}$")
-    ax_pt.set_title("OD600 vs Pressure with Derivative-Based Characteristic Points")
-    ax_pt.legend()
-    ax_pt.grid(True)
-    st.pyplot(fig_pt)
-    
-    # --- Summary table ---
-    st.markdown("**Characteristic Points Derived from Derivative Sign Patterns**")
-    st.dataframe(pd.DataFrame(points))
 
-    
     # ------------------------------------------------------------
     # DERIVATIVE ANALYSIS SECTION
     # ------------------------------------------------------------

@@ -96,7 +96,7 @@ if uploaded_files:
             row[key] = level_dict[key][1]
         results.append(row)
 
-    ax.set_xlabel('Measured Pressure (kPa)')
+    ax.set_xlabel('Gauge Pressure (kPa)')
     ax.set_ylabel('OD$_{600}$')
     ax.set_title(plot_title)
     ax.grid(True)
@@ -161,7 +161,7 @@ if uploaded_files:
         label = series_names[idx]
         color = colors[idx % len(colors)]
         ax2.plot(pressuremeasured, norm_od600, 'o-', label=label, color=color)
-    ax2.set_xlabel('Measured Pressure (kPa)')
+    ax2.set_xlabel('Gauge Pressure (kPa)')
     ax2.set_ylabel('Normalized OD$_{600}$')
     ax2.set_title(norm_plot_title)
     ax2.grid(True)
@@ -229,7 +229,7 @@ if uploaded_files:
                 "Pressure at Min Slope (kPa)": round(p_min_slope, 2),
                 "Min d(OD600)/dP": round(min_slope, 5)
             })
-        ax3.set_xlabel("Measured Pressure (kPa)")
+        ax3.set_xlabel("Gauge Pressure (kPa)")
         ax3.set_ylabel("d(OD600)/dP")
         ax3.set_title("First Derivative of OD600 vs Pressure (ΔP = 5 & 10 kPa)")
         ax3.legend()
@@ -252,7 +252,7 @@ if uploaded_files:
                 "ΔP (kPa)": s,
                 "Pressure at Inflection (d²=0) (kPa)": round(p_inflect, 2)
             })
-        ax4.set_xlabel("Measured Pressure (kPa)")
+        ax4.set_xlabel("Gauge Pressure (kPa)")
         ax4.set_ylabel("d²(OD600)/dP²")
         ax4.set_title("Second Derivative of OD600 vs Pressure (ΔP = 5 & 10 kPa)")
         ax4.legend()

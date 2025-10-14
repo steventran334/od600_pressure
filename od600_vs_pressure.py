@@ -184,7 +184,6 @@ if uploaded_files:
     # ------------------------------------------------------------
     st.subheader("Derivative Analysis (ΔP = 5 & 10 kPa Overlays)")
 
-    # Helper functions
     def derivatives_with_step(P, Y, step_kpa):
         Pu = np.arange(np.min(P), np.max(P)+step_kpa/2, step_kpa)
         Yu = np.interp(Pu, P, Y)
@@ -208,7 +207,6 @@ if uploaded_files:
         y0, y1 = d2_r[i], d2_r[i + 1]
         return x0 - y0 * (x1 - x0) / (y1 - y0) if (y1 - y0) != 0 else (x0 + x1) / 2
 
-    # Only analyze the first uploaded dataset (or allow user choice)
     if len(uploaded_files) > 0:
         st.write("Showing derivative analysis for the first uploaded dataset only.")
         pressure = pressure_all[0]
@@ -218,6 +216,7 @@ if uploaded_files:
         colors = {5: "blue", 10: "red"}
 
         # ---------- First Derivative ----------
+        first_deriv_data = []
         fig3, ax3 = plt.subplots(figsize=(7, 4))
         for s in steps:
             Pu, Yu, d1, d2 = derivatives_with_step(pressure, od600, s)
@@ -225,10 +224,11 @@ if uploaded_files:
             i_min = np.argmin(d1)
             p_min_slope = Pu[i_min]
             min_slope = d1[i_min]
-            ax3.scatter(p_min_slope, min_slope, color='orange', s=80, zorder=5)
-            ax3.text(p_min_slope + 2, min_slope,
-                     f"{s} kPa: min @ {p_min_slope:.1f} kPa",
-                     fontsize=8, color='orange')
+            first_deriv_data.append({
+                "ΔP (kPa)": s,
+                "Pressure at Min Slope (kPa)": round(p_min_slope, 2),
+                "Min d(OD600)/dP": round(min_slope, 5)
+            })
         ax3.set_xlabel("Measured Pressure (kPa)")
         ax3.set_ylabel("d(OD600)/dP")
         ax3.set_title("First Derivative of OD600 vs Pressure (ΔP = 5 & 10 kPa)")
@@ -236,20 +236,18 @@ if uploaded_files:
         ax3.grid(True)
         st.pyplot(fig3)
 
+        # Table: First derivative summary
+        st.markdown("**First Derivative Summary**")
+        st.dataframe(pd.DataFrame(first_deriv_data))
+
         # ---------- Second Derivative ----------
+        second_deriv_data = []
         fig4, ax4 = plt.subplots(figsize=(7, 4))
         for s in steps:
             Pu, Yu, d1, d2 = derivatives_with_step(pressure, od600, s)
             ax4.plot(Pu, d2, linewidth=2, label=f"ΔP = {s} kPa", color=colors[s])
             p_inflect = zero_crossing_pressure(Pu, d2, search_range=(120, 220))
             d2_interp = np.interp(p_inflect, Pu, d2)
-            ax4.scatter(p_inflect, d2_interp, color='green', s=80, zorder=5)
-            ax4.text(p_inflect + 2, d2_interp,
-                     f"{s} kPa: d²=0 @ {p_inflect:.1f} kPa",
-                     fontsize=8, color='green')
-        ax4.set_xlabel("Measured Pressure (kPa)")
-        ax4.set_ylabel("d²(OD600)/dP²")
-        ax4.set_title("Second Derivative of OD600 vs Pressure (ΔP = 5 & 10 kPa)")
-        ax4.legend()
-        ax4.grid(True)
-        st.pyplot(fig4)
+            second_deriv_data.append({
+                "ΔP (kPa)": s,
+

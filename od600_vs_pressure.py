@@ -191,75 +191,75 @@ if uploaded_files:
         mime="image/svg+xml"
     )
    # ------------------------------------------------------------
-# FIND MIDPOINTS OF THE FIVE REGIMES (instead of shading)
-# ------------------------------------------------------------
-st.subheader("Region Midpoints on Original OD600 Curve")
-
-# Reuse previous regime summary (make sure it exists)
-Pu, Yu, D1, D2 = derivatives_with_step(pressure, od600, step_kpa=5)
-
-# Smooth for stability
-from scipy.signal import savgol_filter
-D1s = savgol_filter(D1, 9, 3)
-D2s = savgol_filter(D2, 9, 3)
-
-# Identify inflection point
-sign_change_idx = np.where(np.diff(np.sign(D2s)) != 0)[0]
-if len(sign_change_idx) > 0:
-    infl_idx = sign_change_idx[0]
-    P_infl = Pu[infl_idx]
-else:
-    infl_idx = np.argmin(D1s)
-    P_infl = Pu[infl_idx]
-
-# Define regime edges manually by derivative trends
-# (you can tune thresholds here if needed)
-tau_slope = 0.02 * abs(D1s.min())
-tau_curve = 0.05 * abs(D2s).max()
-
-pre_mask = (np.abs(D1s) < tau_slope) & (Pu < P_infl)
-P1_end = Pu[np.where(pre_mask)[0][-1]] if np.any(pre_mask) else Pu[0]
-
-P2_start = P1_end
-P2_end = P_infl
-
-post_mask = (D2s > 0) & (np.abs(D2s) > tau_curve) & (Pu > P_infl)
-P4_end = Pu[np.where(post_mask)[0][-1]] if np.any(post_mask) else Pu[-1]
-
-P5_start = P4_end
-P5_end = Pu[-1]
-
-# --- compute midpoints for each regime ---
-regimes = [
-    ("Regime 1", Pu[0], P1_end),
-    ("Regime 2", P2_start, P2_end),
-    ("Regime 3", P_infl, P_infl),
-    ("Regime 4", P_infl, P4_end),
-    ("Regime 5", P5_start, P5_end)
-]
-
-midpoints = []
-for name, start, end in regimes:
-    mid = (start + end) / 2
-    od_mid = np.interp(mid, pressure, od600)
-    midpoints.append({"Regime": name, "Mid Pressure (kPa)": round(mid,2), "OD600": round(od_mid,3)})
-
-# Plot original curve + points
-fig_mid, ax_mid = plt.subplots(figsize=(8,5))
-ax_mid.plot(pressure, od600, 'k.-', label="OD600")
-colors = ['#08306b','#08519c','#2171b5','#6baed6','#c6dbef']
-for i, m in enumerate(midpoints):
-    ax_mid.scatter(m["Mid Pressure (kPa)"], m["OD600"], color=colors[i], s=80, zorder=5, label=m["Regime"])
-ax_mid.set_xlabel("Measured Pressure (kPa)")
-ax_mid.set_ylabel("OD$_{600}$")
-ax_mid.set_title("OD600 vs Pressure with Regime Midpoints")
-ax_mid.legend()
-ax_mid.grid(True)
-st.pyplot(fig_mid)
-
-# Display table of midpoints
-st.markdown("**Midpoints of the Five Regimes**")
-st.dataframe(pd.DataFrame(midpoints))
+    # FIND MIDPOINTS OF THE FIVE REGIMES (instead of shading)
+    # ------------------------------------------------------------
+    st.subheader("Region Midpoints on Original OD600 Curve")
+    
+    # Reuse previous regime summary (make sure it exists)
+    Pu, Yu, D1, D2 = derivatives_with_step(pressure, od600, step_kpa=5)
+    
+    # Smooth for stability
+    from scipy.signal import savgol_filter
+    D1s = savgol_filter(D1, 9, 3)
+    D2s = savgol_filter(D2, 9, 3)
+    
+    # Identify inflection point
+    sign_change_idx = np.where(np.diff(np.sign(D2s)) != 0)[0]
+    if len(sign_change_idx) > 0:
+        infl_idx = sign_change_idx[0]
+        P_infl = Pu[infl_idx]
+    else:
+        infl_idx = np.argmin(D1s)
+        P_infl = Pu[infl_idx]
+    
+    # Define regime edges manually by derivative trends
+    # (you can tune thresholds here if needed)
+    tau_slope = 0.02 * abs(D1s.min())
+    tau_curve = 0.05 * abs(D2s).max()
+    
+    pre_mask = (np.abs(D1s) < tau_slope) & (Pu < P_infl)
+    P1_end = Pu[np.where(pre_mask)[0][-1]] if np.any(pre_mask) else Pu[0]
+    
+    P2_start = P1_end
+    P2_end = P_infl
+    
+    post_mask = (D2s > 0) & (np.abs(D2s) > tau_curve) & (Pu > P_infl)
+    P4_end = Pu[np.where(post_mask)[0][-1]] if np.any(post_mask) else Pu[-1]
+    
+    P5_start = P4_end
+    P5_end = Pu[-1]
+    
+    # --- compute midpoints for each regime ---
+    regimes = [
+        ("Regime 1", Pu[0], P1_end),
+        ("Regime 2", P2_start, P2_end),
+        ("Regime 3", P_infl, P_infl),
+        ("Regime 4", P_infl, P4_end),
+        ("Regime 5", P5_start, P5_end)
+    ]
+    
+    midpoints = []
+    for name, start, end in regimes:
+        mid = (start + end) / 2
+        od_mid = np.interp(mid, pressure, od600)
+        midpoints.append({"Regime": name, "Mid Pressure (kPa)": round(mid,2), "OD600": round(od_mid,3)})
+    
+    # Plot original curve + points
+    fig_mid, ax_mid = plt.subplots(figsize=(8,5))
+    ax_mid.plot(pressure, od600, 'k.-', label="OD600")
+    colors = ['#08306b','#08519c','#2171b5','#6baed6','#c6dbef']
+    for i, m in enumerate(midpoints):
+        ax_mid.scatter(m["Mid Pressure (kPa)"], m["OD600"], color=colors[i], s=80, zorder=5, label=m["Regime"])
+    ax_mid.set_xlabel("Measured Pressure (kPa)")
+    ax_mid.set_ylabel("OD$_{600}$")
+    ax_mid.set_title("OD600 vs Pressure with Regime Midpoints")
+    ax_mid.legend()
+    ax_mid.grid(True)
+    st.pyplot(fig_mid)
+    
+    # Display table of midpoints
+    st.markdown("**Midpoints of the Five Regimes**")
+    st.dataframe(pd.DataFrame(midpoints))
 
     
     # ------------------------------------------------------------

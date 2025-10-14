@@ -180,6 +180,84 @@ if uploaded_files:
     )
 
     # ------------------------------------------------------------
+    # FIVE-REGIME SEGMENTATION
+    # ------------------------------------------------------------
+    st.subheader("Automated Regime Segmentation (from Derivatives)")
+
+    # Compute at ΔP=5 kPa for segmentation
+    Pu, Yu, D1, D2 = derivatives_with_step(pressure, od600, step_kpa=5)
+
+    # Define thresholds relative to signal magnitude
+    tau_D1 = 0.03 * np.abs(D1.min())  # 3% of steepest slope
+    tau_D2 = 0.05 * np.abs(D2).max()  # 5% of peak curvature
+
+    # Smooth for stability (optional)
+    from scipy.signal import savgol_filter
+    D1_s = savgol_filter(D1, 7, 2)
+    D2_s = savgol_filter(D2, 7, 2)
+
+    # Identify regimes
+    regime_labels = np.zeros_like(Pu, dtype=int)
+
+    # Regime 1: near-flat
+    flat_mask = (np.abs(D1_s) <= tau_D1) & (np.abs(D2_s) <= tau_D2)
+    if np.any(flat_mask):
+        end1 = Pu[np.where(flat_mask)[0][-1]]
+        regime_labels[Pu <= end1] = 1
+    else:
+        end1 = Pu[0]
+
+    # Regime 2: negative slope, concave down until inflection
+    sign_change_idx = np.where(np.diff(np.sign(D2_s)) != 0)[0]
+    if len(sign_change_idx) > 0:
+        infl_idx = sign_change_idx[0]
+        P_infl = Pu[infl_idx]
+    else:
+        P_infl = Pu[np.argmin(D1_s)]
+    regime_labels[(Pu > end1) & (Pu <= P_infl)] = 2
+    regime_labels[np.isclose(Pu, P_infl, atol=2)] = 3  # inflection
+
+    # Regime 4: after inflection until curvature small again
+    post_mask = (Pu > P_infl) & (np.abs(D2_s) > tau_D2)
+    if np.any(post_mask):
+        end4 = Pu[np.where(post_mask)[0][-1]]
+    else:
+        end4 = P_infl
+    regime_labels[(Pu > P_infl) & (Pu <= end4)] = 4
+
+    # Regime 5: tail linear (curvature ≈ 0)
+    regime_labels[Pu > end4] = 5
+
+    # Summarize
+    summary = []
+    for r in range(1,6):
+        mask = regime_labels == r
+        if np.any(mask):
+            summary.append({
+                "Regime": r,
+                "Start (kPa)": round(Pu[mask][0],2),
+                "End (kPa)": round(Pu[mask][-1],2),
+                "Mean dOD/dP": round(np.mean(D1_s[mask]),5),
+                "Mean d²OD/dP²": round(np.mean(D2_s[mask]),6)
+            })
+    st.dataframe(pd.DataFrame(summary))
+
+    # Plot original OD600 with shaded regimes
+    fig5, ax5 = plt.subplots(figsize=(8,5))
+    ax5.plot(pressure, od600, 'k.-', label="OD600")
+    colors_reg = ['#b3cde3','#ccebc5','#fbb4ae','#decbe4','#fed9a6']
+    for i, reg in enumerate(summary):
+        ax5.axvspan(reg["Start (kPa)"], reg["End (kPa)"],
+                    color=colors_reg[i], alpha=0.3, label=f"Regime {reg['Regime']}")
+    ax5.set_xlabel("Measured Pressure (kPa)")
+    ax5.set_ylabel("OD$_{600}$")
+    ax5.set_title("OD600 vs Pressure with Regime Segmentation")
+    ax5.legend()
+    ax5.grid(True)
+    st.pyplot(fig5)
+
+    
+    # ------------------------------------------------------------
     # DERIVATIVE ANALYSIS SECTION
     # ------------------------------------------------------------
     st.subheader("Derivative Analysis (ΔP = 5 & 10 kPa Overlays)")

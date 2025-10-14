@@ -190,80 +190,76 @@ if uploaded_files:
         file_name="Normalized_OD600_vs_Pressure_overlay.svg",
         mime="image/svg+xml"
     )
-    # ------------------------------------------------------------
-    # REFINE REGIME SEGMENTATION USING INFLECTION ANCHOR
-    # ------------------------------------------------------------
-    st.subheader("Automated Regime Segmentation (Inflection-Anchored)")
+   # ------------------------------------------------------------
+# FIND MIDPOINTS OF THE FIVE REGIMES (instead of shading)
+# ------------------------------------------------------------
+st.subheader("Region Midpoints on Original OD600 Curve")
 
-    Pu, Yu, D1, D2 = derivatives_with_step(pressure, od600, step_kpa=5)
+# Reuse previous regime summary (make sure it exists)
+Pu, Yu, D1, D2 = derivatives_with_step(pressure, od600, step_kpa=5)
 
-    # Smooth slightly for stability
-    from scipy.signal import savgol_filter
-    D1s = savgol_filter(D1, 9, 3)
-    D2s = savgol_filter(D2, 9, 3)
+# Smooth for stability
+from scipy.signal import savgol_filter
+D1s = savgol_filter(D1, 9, 3)
+D2s = savgol_filter(D2, 9, 3)
 
-    # Derivative thresholds
-    tau_slope = 0.02 * abs(D1s.min())
-    tau_curve = 0.05 * abs(D2s).max()
+# Identify inflection point
+sign_change_idx = np.where(np.diff(np.sign(D2s)) != 0)[0]
+if len(sign_change_idx) > 0:
+    infl_idx = sign_change_idx[0]
+    P_infl = Pu[infl_idx]
+else:
+    infl_idx = np.argmin(D1s)
+    P_infl = Pu[infl_idx]
 
-    # --- Step 1: find inflection ---
-    sign_change_idx = np.where(np.diff(np.sign(D2s)) != 0)[0]
-    if len(sign_change_idx) > 0:
-        infl_idx = sign_change_idx[0]
-        P_infl = Pu[infl_idx]
-    else:
-        infl_idx = np.argmin(D1s)
-        P_infl = Pu[infl_idx]
+# Define regime edges manually by derivative trends
+# (you can tune thresholds here if needed)
+tau_slope = 0.02 * abs(D1s.min())
+tau_curve = 0.05 * abs(D2s).max()
 
-    # --- Step 2: find regime boundaries ---
-    # 1: where slope nearly zero (flat) before change
-    pre_mask = (np.abs(D1s) < tau_slope) & (Pu < P_infl)
-    P1_end = Pu[np.where(pre_mask)[0][-1]] if np.any(pre_mask) else Pu[0]
+pre_mask = (np.abs(D1s) < tau_slope) & (Pu < P_infl)
+P1_end = Pu[np.where(pre_mask)[0][-1]] if np.any(pre_mask) else Pu[0]
 
-    # 2: from end of regime 1 to inflection
-    P2_start = P1_end
-    P2_end = P_infl
+P2_start = P1_end
+P2_end = P_infl
 
-    # 4: after inflection, where curvature still positive but slope not yet steady
-    post_mask = (D2s > 0) & (np.abs(D2s) > tau_curve) & (Pu > P_infl)
-    P4_end = Pu[np.where(post_mask)[0][-1]] if np.any(post_mask) else Pu[-1]
+post_mask = (D2s > 0) & (np.abs(D2s) > tau_curve) & (Pu > P_infl)
+P4_end = Pu[np.where(post_mask)[0][-1]] if np.any(post_mask) else Pu[-1]
 
-    # 5: tail region where curvature ~0 (flat second derivative)
-    P5_start = P4_end
-    P5_end = Pu[-1]
+P5_start = P4_end
+P5_end = Pu[-1]
 
-    # --- Step 3: summarize regimes ---
-    summary = [
-        {"Regime": 1, "Start (kPa)": Pu[0], "End (kPa)": round(P1_end, 2),
-         "Mean dOD/dP": np.mean(D1s[Pu<=P1_end]), "Mean d²OD/dP²": np.mean(D2s[Pu<=P1_end])},
-        {"Regime": 2, "Start (kPa)": round(P2_start,2), "End (kPa)": round(P2_end, 2),
-         "Mean dOD/dP": np.mean(D1s[(Pu>=P2_start)&(Pu<=P2_end)]),
-         "Mean d²OD/dP²": np.mean(D2s[(Pu>=P2_start)&(Pu<=P2_end)])},
-        {"Regime": 3, "Start (kPa)": round(P_infl,2), "End (kPa)": round(P_infl,2),
-         "Mean dOD/dP": D1s[infl_idx], "Mean d²OD/dP²": D2s[infl_idx]},
-        {"Regime": 4, "Start (kPa)": round(P_infl,2), "End (kPa)": round(P4_end, 2),
-         "Mean dOD/dP": np.mean(D1s[(Pu>=P_infl)&(Pu<=P4_end)]),
-         "Mean d²OD/dP²": np.mean(D2s[(Pu>=P_infl)&(Pu<=P4_end)])},
-        {"Regime": 5, "Start (kPa)": round(P5_start, 2), "End (kPa)": round(P5_end, 2),
-         "Mean dOD/dP": np.mean(D1s[Pu>=P5_start]), "Mean d²OD/dP²": np.mean(D2s[Pu>=P5_start])},
-    ]
-    df_summary = pd.DataFrame(summary)
-    st.dataframe(df_summary)
+# --- compute midpoints for each regime ---
+regimes = [
+    ("Regime 1", Pu[0], P1_end),
+    ("Regime 2", P2_start, P2_end),
+    ("Regime 3", P_infl, P_infl),
+    ("Regime 4", P_infl, P4_end),
+    ("Regime 5", P5_start, P5_end)
+]
 
-    # --- Step 4: shaded plot ---
-    fig5, ax5 = plt.subplots(figsize=(8,5))
-    ax5.plot(pressure, od600, 'k.-', label="OD600")
-    reg_colors = ['#c6dbef','#9ecae1','#fdae6b','#fdd0a2','#fee6ce']
-    for i, row in enumerate(summary):
-        ax5.axvspan(row["Start (kPa)"], row["End (kPa)"],
-                    color=reg_colors[i], alpha=0.3, label=f"Regime {row['Regime']}")
-    ax5.set_xlabel("Measured Pressure (kPa)")
-    ax5.set_ylabel("OD$_{600}$")
-    ax5.set_title("OD600 vs Pressure (Five Regimes)")
-    ax5.legend()
-    ax5.grid(True)
-    st.pyplot(fig5)
+midpoints = []
+for name, start, end in regimes:
+    mid = (start + end) / 2
+    od_mid = np.interp(mid, pressure, od600)
+    midpoints.append({"Regime": name, "Mid Pressure (kPa)": round(mid,2), "OD600": round(od_mid,3)})
 
+# Plot original curve + points
+fig_mid, ax_mid = plt.subplots(figsize=(8,5))
+ax_mid.plot(pressure, od600, 'k.-', label="OD600")
+colors = ['#08306b','#08519c','#2171b5','#6baed6','#c6dbef']
+for i, m in enumerate(midpoints):
+    ax_mid.scatter(m["Mid Pressure (kPa)"], m["OD600"], color=colors[i], s=80, zorder=5, label=m["Regime"])
+ax_mid.set_xlabel("Measured Pressure (kPa)")
+ax_mid.set_ylabel("OD$_{600}$")
+ax_mid.set_title("OD600 vs Pressure with Regime Midpoints")
+ax_mid.legend()
+ax_mid.grid(True)
+st.pyplot(fig_mid)
+
+# Display table of midpoints
+st.markdown("**Midpoints of the Five Regimes**")
+st.dataframe(pd.DataFrame(midpoints))
 
     
     # ------------------------------------------------------------

@@ -126,6 +126,18 @@ if uploaded_files:
         mime="image/svg+xml"
     )
 
+    # Download PNG button (for overlay plot)
+    png_buf = io.BytesIO()
+    fig.savefig(png_buf, format="png", dpi=300, bbox_inches="tight")
+    png_buf.seek(0)
+    st.download_button(
+        label="Download plot as PNG",
+        data=png_buf,
+        file_name="OD600_vs_Pressure_overlay.png",
+        mime="image/png"
+    )
+
+    
     # --- CSV EXPORT SECTION ---
     # Prepare data for CSV export
     export_rows = []
@@ -191,6 +203,18 @@ if uploaded_files:
         mime="image/svg+xml"
     )
 
+    # Download PNG button for normalized plot
+    png_buf2 = io.BytesIO()
+    fig2.savefig(png_buf2, format="png", dpi=300, bbox_inches="tight")
+    png_buf2.seek(0)
+    st.download_button(
+        label="Download normalized plot as PNG",
+        data=png_buf2,
+        file_name="Normalized_OD600_vs_Pressure_overlay.png",
+        mime="image/png"
+    )
+
+    
     # ------------------------------------------------------------
     # DERIVATIVE ANALYSIS SECTION
     # ------------------------------------------------------------

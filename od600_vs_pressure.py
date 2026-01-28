@@ -174,7 +174,7 @@ if uploaded_files:
     st.dataframe(max_df)
 
     # Editable title for normalized overlay plot
-    norm_plot_title = st.text_input("Normalized Plot Title", value="Normalized OD600 vs Pressure")
+    norm_plot_title = st.text_input("Normalized Plot Title", value="Normalized")
     st.subheader("Normalized OD600 vs Pressure (for fair comparison)")
     fig2, ax2 = plt.subplots()
     for idx, (pressuremeasured, od600) in enumerate(zip(pressure_all, od600_all)):

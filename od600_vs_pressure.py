@@ -28,7 +28,7 @@ uploaded_files = st.file_uploader(
 )
 
 # Editable title for the absolute (raw) overlay plot
-plot_title = st.text_input("Plot Title (for absolute OD600 plot)", value="OD600 vs Pressure")
+plot_title = st.text_input("Plot Title (for absolute OD600 plot)", value="")
 
 series_names = []
 od600_all = []
